@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+# Copyright (c) 2011 Vincent Batts, Vienna, VA, USA
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+import os
+import sys
+import json
+from optparse import OptionParser
+import logging
+
+# Setup our path, if this is running from the src directory
+fpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),"../lib")
+if os.path.exists(fpath):
+    sys.path.insert(0,fpath)
+
+import pysubsonic
+
+log = logging.getLogger('subsonic')
+
+def parse_args(args):
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage)
+    parser.add_option("-s","--search",dest="search",default=None,
+            help="string to search for")
+    parser.add_option("-D",dest="debug",action="store_true",
+            default=False,help="debugging")
+    return parser.parse_args(args)
+
+def init_logging(level = pysubsonic.DEFAULT_LOG_LEVEL):
+    hndlr = logging.StreamHandler()
+    log.addHandler(hndlr)
+    log.setLevel(level)
+
+def has_cmd(cmd):
+    if os.system('type -p %s 2>/dev/null >/dev/null' % cmd) == 0:
+        return True
+    else:
+        return False
+
+def check_system():
+    if not has_cmd('play'): return False
+    if not has_cmd('wget'): return False
+    if not has_cmd('curl'): return False
+    return True
+
+
+if __name__ == '__main__':
+
+    (opts, args) = parse_args(sys.argv[0:])
+    if opts.debug:
+        init_logging(logging.DEBUG)
+    else:
+        init_logging()
+
+
+    auth = pysubsonic.config.read_config()['auth']
+    sub = pysubsonic.subsonic.Subsonic(auth['url'], auth['username'], auth['password'])
+
+    log.debug( sub.__mkparams__() )
+
+    log.debug( sub.getLicense() )
+
+    response = sub.getMusicFolders()
+    # '{"subsonic-response": {\n "license": {\n  "date": "2011-05-16T15:18:12",\n  "email": "vbatts@gmail.com",\n  "key": "8e2c6485e247b6c2457c8c0bdcaca459",\n  "valid": true\n },\n "status": "ok",\n "version": "1.6.0",\n "xmlns": "http://subsonic.org/restapi"\n}}'
+    log.debug(response)
+
+    basedirs = json.loads(response)['subsonic-response']['musicFolders']['musicFolder']
+    # {u'subsonic-response': {u'musicFolders': {u'musicFolder': [{u'id': 0, u'name': u'Music'}, {u'id': 1, u'name': u'Videos'}]}, u'status': u'ok', u'version': u'1.6.0', u'xmlns': u'http://subsonic.org/restapi'}}
+    log.debug(basedirs)
+ 
+    response = sub.getIndexes( musicFolderId = '0' )
+    log.debug(response)
+
+
