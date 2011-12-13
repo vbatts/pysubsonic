@@ -63,7 +63,6 @@ class DataNotFound(GenericError):
     DEFAULT_STRING = "The requested data was not found"
 
 class Subsonic:
-    SERVER_API_VERSION = '1.0.0'
     '''
     >>> from subsonic import *
     >>> config = read_config()
@@ -80,6 +79,7 @@ class Subsonic:
         +isenc+ - Boolean. Indicates whether +password+ is hex encoded. True by
                 default. If set to False, then +password+ will be stored hex encoded.
         '''
+        self.api_version = '1.0.0'
         if url.endswith('/'):
             url = url + 'rest'
         elif not url.endswith('/') and not url.endswith('rest'):
@@ -132,7 +132,10 @@ class Subsonic:
 
     def __gleen_info__(self, response):
         '''
-        Simple inline critter, to get the response status and server api version
+        Simple inline critter, to get the response status and server api version.
+
+        If the response status fails, this will raise the correcsponding
+        exception.
         '''
         if not response:
             return response
@@ -140,8 +143,8 @@ class Subsonic:
         sub_rsp = json.loads(response)
         if sub_rsp.has_key('subsonic-response'):
             if sub_rsp['subsonic-response'].has_key('version'):
-                SERVER_API_VERSION = sub_rsp['subsonic-response']['version']
-                log.debug('server api version: ' + SERVER_API_VERSION)
+                self.api_version = sub_rsp['subsonic-response']['version']
+                log.debug('server api version: ' + self.api_version)
             if sub_rsp['subsonic-response'].has_key('status'):
                 log.debug('response status' + sub_rsp['subsonic-response']['status'])
                 if not sub_rsp['subsonic-response']['status'] == 'ok':
@@ -149,17 +152,23 @@ class Subsonic:
 
         return sub_rsp
 
+    def __open_url__(self, meth, params):
+        '''
+        Used by self.__get_meth__()
+
+        This returns the handle for the opened url.
+        '''
+        return urllib2.urlopen(
+                self.url + '/' + meth, self.__mkparams__(params)
+                )
+
     def __get_meth__(self, meth, params):
         '''
         The generic getter for REST method calls.
         +meth+ - the API method
         +params+ - a dict of parameters. This can be {} 
         '''
-        return self.__gleen_info__(
-                urllib2.urlopen(
-                        self.url + '/' + meth, self.__mkparams__(params)
-                    ).read()
-                )
+        return self.__gleen_info__( self.__open_url__(meth,params).read())
     
     def ping(self):
         '''
@@ -214,10 +223,56 @@ class Subsonic:
             p['ifModifiedSince'] = ifModifiedSince
         return self.__get_meth__('getIndexes', p)
 
+    def search(self, artist = None, album = None, title = None,
+            any = None, count = 20, offset = 0, newerThan = None):
+        '''
+        Since 1.0.0 
+        Deprecated since 1.4.0, use search2 instead.
+
+        Returns a listing of files matching the given search criteria. Supports
+        paging through the result.
+
+        Parameter   Required    Default Comment
+        artist      No      Artist to search for.
+        album       No      Album to searh for.
+        title       No      Song title to search for.
+        any         No      Searches all fields.
+        count       No  20  Maximum number of results to return.
+        offset      No  0   Search result offset. Used for paging.
+        newerThan   No      Only return matches that are newer than this. Given
+        as milliseconds since 1970.
+
+        Returns a <subsonic-response> element with a nested <searchResult>
+        element on success.
+        '''
+        if self.api_version > '1.4.0':
+            log.info('search() was depracte since version 1.4.0,'
+                    'use search2() instead')
+            return None
+
+        p = { }
+        if artist:
+            p['artist'] = artist
+        if album:
+            p['album'] = album
+        if title:
+            p['title'] = title
+        if any:
+            p['any'] = any
+        if count:
+            p['count'] = count
+        if offset:
+            p['offset'] = offset
+        if newerThan:
+            p['newerThan'] = newerThan
+        return self.__get_meth__('search', p)
+
     def search2(self, query, artistCount = 20, artistOffset = 0,
             albumCount = 20, albumOffset = 0, songCount = 20,
             songOffset = 0):
         '''
+        Since 1.4.0
+
         Returns albums, artists and songs matching the given search criteria.
         Supports paging through the result.
 
@@ -234,6 +289,11 @@ class Subsonic:
         Returns a <subsonic-response> element with a nested <searchResult2>
         element on success.
         '''
+        if self.api_version < '1.4.0':
+            log.info('search() was implemented since version 1.4.0,'
+                    'use search() instead')
+            return None
+
         p = {
                 'query':query
                 }
