@@ -41,6 +41,8 @@ def parse_args(args):
             help="string to search for")
     parser.add_option("-D",dest="debug",action="store_true",
             default=False,help="debugging")
+    parser.add_option("-i",dest="indexes",action="store_true",
+            default=False,help="show indexes")
     return parser.parse_args(args)
 
 def init_logging(level = pysubsonic.DEFAULT_LOG_LEVEL):
@@ -85,7 +87,11 @@ if __name__ == '__main__':
     # {u'subsonic-response': {u'musicFolders': {u'musicFolder': [{u'id': 0, u'name': u'Music'}, {u'id': 1, u'name': u'Videos'}]}, u'status': u'ok', u'version': u'1.6.0', u'xmlns': u'http://subsonic.org/restapi'}}
     log.debug(basedirs)
  
-    response = sub.getIndexes( musicFolderId = '0' )
-    log.debug(response)
+    if opts.indexes:
+        response = sub.getIndexes( musicFolderId = '0' )
+        log.debug(response)
 
+    if opts.search:
+        response = sub.search2( query = opts.search )
+        log.debug(response)
 

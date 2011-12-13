@@ -132,5 +132,41 @@ class Subsonic:
             p['ifModifiedSince'] = ifModifiedSince
         return self.__get_meth__('getIndexes', p)
 
+    def search2(self, query, artistCount = 20, artistOffset = 0,
+            albumCount = 20, albumOffset = 0, songCount = 20,
+            songOffset = 0):
+        '''
+        Returns albums, artists and songs matching the given search criteria.
+        Supports paging through the result.
+
+        Parameter   Required    Default Comment
+        query       Yes     Search query.
+        artistCount No  20  Maximum number of artists to return.
+        artistOffset    No  0   Search result offset for artists. Used for
+        paging.
+        albumCount  No  20  Maximum number of albums to return.
+        albumOffset No  0   Search result offset for albums. Used for paging.
+        songCount   No  20  Maximum number of songs to return.
+        songOffset  No  0   Search result offset for songs. Used for paging.
+
+        Returns a <subsonic-response> element with a nested <searchResult2>
+        element on success.
+        '''
+        p = {
+                'query':query
+                }
+        if artistCount:
+            p['artistCount'] = artistCount
+        if artistOffset:
+            p['artistOffset'] = artistOffset
+        if albumCount:
+            p['albumCount'] = albumCount
+        if albumOffset:
+            p['albumOffset'] = albumOffset
+        if songCount:
+            p['songCount'] = songCount
+        if songOffset:
+            p['songOffset'] = songOffset
+        return self.__get_meth__('search2', p)
 
 
