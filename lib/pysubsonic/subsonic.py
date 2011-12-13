@@ -22,13 +22,48 @@ THE SOFTWARE.
 
 import urllib
 import urllib2
-#import json
+import json
 import logging
 from pysubsonic import const
 
 log = logging.getLogger('pysubsonic.subsonic')
 
+class GenericError(Exception):
+    DEFAULT_STRING = "A Generic Error occurred"
+    def __init__(self, mess = None):
+        if mess:
+            mess = self.DEFAULT_STRING + ": " + mess
+        else:
+            mess = self.DEFAULT_STRING + "."
+        Exception.__init__(self, mess)
+
+class ParameterMissing(GenericError):
+    DEFAULT_STRING = "Required parameter is missing"
+
+class IncompatibleClientVersion(GenericError):
+    DEFAULT_STRING = ("Incompatible Subsonic REST protocol version."
+            "Client must upgrade")
+
+class IncompatibleServerVersion(GenericError):
+    DEFAULT_STRING = ("Incompatible Subsonic REST protocol version."
+            "Server must upgrade")
+
+class AuthError(GenericError):
+    DEFAULT_STRING = "Wrong username or password"
+
+class UnauthorizationError(GenericError):
+    DEFAULT_STRING = "User is not authorized for the given operation"
+
+class TrialOverError(GenericError):
+    DEFAULT_STRING = ("The trial period for the Subsonic server is over."
+            "Please donate to get a license key."
+            "Visit subsonic.org for details.")
+
+class DataNotFound(GenericError):
+    DEFAULT_STRING = "The requested data was not found"
+
 class Subsonic:
+    SERVER_API_VERSION = '1.0.0'
     '''
     >>> from subsonic import *
     >>> config = read_config()
@@ -71,14 +106,61 @@ class Subsonic:
             base_params[k] = params[k]
         return urllib.urlencode(base_params)
 
+    def __parse_error__(self, rsp_dict):
+        ret = Exception
+        log.debug(rsp_dict['subsonic-response'])
+        error = rsp_dict['subsonic-response']['error']
+        if error['code'] == 0:
+            ret = GenericError
+        elif error['code'] == 10:
+            ret = ParameterMissing
+        elif error['code'] == 20:
+            ret = IncompatibleClientVersion
+        elif error['code'] == 30:
+            ret = IncompatibleServerVersion
+        elif error['code'] == 40:
+            ret = AuthError
+        elif error['code'] == 50:
+            ret = UnauthorizationError
+        elif error['code'] == 50:
+            ret = TrialOverError
+        elif error['code'] == 50:
+            ret = DataNotFound
+        else:
+            ret = GenericError
+        return ret
+
+    def __gleen_info__(self, response):
+        '''
+        Simple inline critter, to get the response status and server api version
+        '''
+        if not response:
+            return response
+
+        sub_rsp = json.loads(response)
+        if sub_rsp.has_key('subsonic-response'):
+            if sub_rsp['subsonic-response'].has_key('version'):
+                SERVER_API_VERSION = sub_rsp['subsonic-response']['version']
+                log.debug('server api version: ' + SERVER_API_VERSION)
+            if sub_rsp['subsonic-response'].has_key('status'):
+                log.debug('response status' + sub_rsp['subsonic-response']['status'])
+                if not sub_rsp['subsonic-response']['status'] == 'ok':
+                    raise self.__parse_error__(sub_rsp)
+
+        return sub_rsp
+
     def __get_meth__(self, meth, params):
         '''
         The generic getter for REST method calls.
         +meth+ - the API method
         +params+ - a dict of parameters. This can be {} 
         '''
-        return urllib2.urlopen( self.url + '/' + meth, self.__mkparams__(params) ).read()
-
+        return self.__gleen_info__(
+                urllib2.urlopen(
+                        self.url + '/' + meth, self.__mkparams__(params)
+                    ).read()
+                )
+    
     def ping(self):
         '''
         Used to test connectivity with the server. Takes no extra parameters.
